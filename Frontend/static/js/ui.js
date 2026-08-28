@@ -264,16 +264,22 @@ const UI = {
     this.loadWeather();
   },
 async handleGoogle(){
-  if(typeof window.googleLogin !== 'function'){
-    toast('Google login is still loading — try again in a moment');
-    return;
+  try{
+    console.log("Google button clicked");
+
+    if(typeof window.googleLogin !== 'function'){
+      throw new Error("window.googleLogin is not available");
+    }
+
+    await window.googleLogin();
+
+  }catch(e){
+    console.error("Google login error:", e);
+    toast("Google error: " + e.message);
+    alert("Google login error: " + e.message);
   }
-
-  await window.googleLogin();
 },
-
 async handleSignOut(){
-  async handleSignOut(){
     await API.logout().catch(()=>{});
     localStorage.removeItem('flow_token');
     localStorage.removeItem('flow_user');
