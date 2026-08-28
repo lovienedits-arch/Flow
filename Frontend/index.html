@@ -379,22 +379,55 @@ try {
     );
 
     const app = initializeApp(cfg);
+    </script>
 
-    window.FLOW_FIREBASE = {
-      app,
-      getAuth,
-      GoogleAuthProvider,
-      signInWithPopup,
-      signOut,
-      onAuthStateChanged
-    };
+<script>
+window.FLOW_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDo482Rc0T2BaX2zyTX589BfenbYXPpvD0",
+  authDomain: "flow-nasai.firebaseapp.com",
+  projectId: "flow-nasai",
+  storageBucket: "flow-nasai.firebasestorage.app",
+  messagingSenderId: "1035391569323",
+  appId: "1:1035391569323:web:6109ee843524c6c377d6ee",
+  measurementId: "G-8MCJ6YV43V"
+};
+</script>
 
-    window.dispatchEvent(new Event("flow-firebase-ready"));
-  }
+<script type="module">
+try {
+  const cfg = window.FLOW_FIREBASE_CONFIG;
+
+  const { initializeApp } = await import(
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"
+  );
+
+  const {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    onAuthStateChanged
+  } = await import(
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"
+  );
+
+  const app = initializeApp(cfg);
+
+  window.FLOW_FIREBASE = {
+    app,
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    onAuthStateChanged
+  };
+
+  window.dispatchEvent(new Event("flow-firebase-ready"));
+
 } catch (e) {
   console.error("Firebase error:", e);
 }
 </script>
-</script>
+
 </body>
 </html>
