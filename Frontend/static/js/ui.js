@@ -264,26 +264,36 @@ const UI = {
     this.loadWeather();
   },
 async handleGoogle(){
-  if(!window._FLOW_AUTH){
-    toast('Google sign-in not configured — use username');
-    return;
-  }
   try{
-    const auth=window._FLOW_AUTH.getAuth();
-    const provider=new window._FLOW_AUTH.GoogleAuthProvider();
-    const cred=await window._FLOW_AUTH.signInWithPopup(auth, provider);
-    const user=cred.user;
+    console.log("Google button clicked");
+
+    if(typeof window.googleLogin !== 'function'){
+      throw new Error("Google login is not ready");
+    }
+
+    const user = await window.googleLogin();
 
     this.updateProfileUI({
       username: user.email.split('@')[0],
-      display_name: user.displayName||user.email
+      display_name: user.displayName || user.email
     });
 
+    localStorage.setItem('flow_user', JSON.stringify({
+      username: user.email.split('@')[0],
+      display_name: user.displayName || user.email
+    }));
+
+    localStorage.setItem('flow_guest', '1');
+
     this.hideAuth();
-    localStorage.setItem('flow_guest','1');
-    toast(`Google: ${user.displayName}`);
+    this.startTrackPolling();
+    this.loadWeather();
+
+    toast(`Welcome ${user.displayName || user.email}`);
+
   }catch(e){
-    toast('Google failed: '+e.message);
+    console.error("Google login error:", e);
+    toast("Google error: " + e.message);
   }
 },
 async handleSignOut(){
