@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Flow | Predict. Optimize. Move.</title>
+<script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div id="map" aria-label="Bengaluru map"></div>
+<div id="secure-hint" class="secure-hint hidden">⚠️ Precise GPS needs HTTPS — open via <b>https://127.0.0.1:5000</b> or <b>localhost</b>, or use map tap / address search as fallback.</div>
+
+<!-- Auth Modal — shows on open if not logged in -->
+<div id="auth-modal" class="modal hidden">
+  <div class="modal-content auth-content">
+    <div class="auth-brand">
+      <div class="brand-mark large">◉</div>
+      <div><div class="brand-title large">Flow</div><small>Predict. Optimize. Move.</small></div>
+    </div>
+    <div class="auth-tabs">
+      <button id="tab-login" class="active">Log in</button>
+      <button id="tab-register">Sign up</button>
+    </div>
+    <div id="auth-error" class="auth-error hidden"></div>
+    <!-- Login -->
+    <form id="form-login" class="auth-form">
+      <label>Username<input id="login-user" autocomplete="username" placeholder="e.g. shreyash" required></label>
+      <label>Password<input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required></label>
+      <button type="submit" class="btn-primary full-width">Log in</button>
+      <button type="button" id="btn-google" class="btn-secondary full-width small" style="margin-top:8px">Continue with Google</button>
+      <p class="auth-hint">New here? <a href="#" id="link-to-register">Create a username</a></p>
+      <button type="button" id="btn-guest" class="btn-ghost full-width small">Continue as Guest</button>
+    </form>
+    <!-- Register -->
+    <form id="form-register" class="auth-form hidden">
+      <label>Choose username <small>(3–20 letters, numbers, _ — unique)</small><input id="reg-user" autocomplete="username" placeholder="e.g. navya123" required></label>
+      <label>Display name<input id="reg-display" placeholder="Navya" ></label>
+      <label>Password <small>(min 6 chars, safely hashed)</small><input id="reg-pass" type="password" autocomplete="new-password" required></label>
+      <label>Confirm password<input id="reg-pass2" type="password" autocomplete="new-password" required></label>
+      <button type="submit" class="btn-primary full-width">Create account</button>
+      <button type="button" id="btn-google-reg" class="btn-secondary full-width small" style="margin-top:8px">Continue with Google</button>
+      <p class="auth-hint">Already have one? <a href="#" id="link-to-login">Log in</a></p>
+    </form>
+    <p class="auth-foot">Secure auth — passwords hashed (Werkzeug), usernames unique & case-insensitive. Google sign-in available when Firebase configured.</p>
+  </div>
+</div>
+
+<!-- Top Left Search — cleaner -->
+<div class="panel search-panel" id="search-panel">
+  <div class="search-header">
+    <div class="brand">
+      <div class="brand-mark">◉</div>
+      <div><div class="brand-title">Flow</div><div class="brand-sub">Predict. Optimize. Move.</div></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="icon-btn" id="btn-locate-header" title="Use my location">◎</button>
+      <button class="icon-btn" id="btn-collapse-search" title="Collapse">—</button>
+    </div>
+  </div>
+
+  <div id="search-fields">
+    <div class="field-group">
+      <div class="field">
+        <span class="field-dot origin"></span>
+        <input type="text" id="origin-input" placeholder="Starting point — tap map or use ◎" autocomplete="off">
+        <button class="icon-btn tiny" id="btn-my-loc-origin" title="Use my location">◎</button>
+        <button class="clear-btn" data-clear="origin-input">×</button>
+      </div>
+      <div id="origin-results" class="autocomplete-dropdown hidden"></div>
+    </div>
+
+    <button id="btn-swap" class="swap-btn" title="Swap">⇅</button>
+
+    <div class="field-group">
+      <div class="field">
+        <span class="field-dot dest"></span>
+        <input type="text" id="dest-input" placeholder="Where to? Type any place" autocomplete="off">
+        <button class="clear-btn" data-clear="dest-input">×</button>
+      </div>
+      <div id="dest-results" class="autocomplete-dropdown hidden"></div>
+    </div>
+
+    <button id="btn-route" class="btn-primary full-width">Navigate →</button>
+    <div class="hint">Tip: type any place, press Enter, or click map to set point. Your location is used when you tap ◎.</div>
+
+    <div class="saved-chips" id="saved-chips">
+      <button class="chip" data-place="home">⌂ Home</button>
+      <button class="chip" data-place="work">◈ Work</button>
+      <button class="chip" data-save>＋ Save place</button>
+    </div>
+    <div class="map-pick-hint">Click map → <button class="btn-link" id="btn-pick-origin">Set as origin</button> · <button class="btn-link" id="btn-pick-dest">Set as destination</button> <span id="picked-coords" class="picked-coords"></span></div>
+
+    <label class="check" style="margin:8px 0; background:var(--bg-soft); padding:8px 10px; border-radius:10px; border:1px solid var(--border);"><input type="checkbox" id="carpool-trip-toggle"> <span style="margin-left:6px">🚗 Carpool this trip — share ride & save CO₂</span></label>
+    <!-- FlowPool — Carpool under addresses, 2 tabs like login/signup -->
+    <div class="flowpool-widget hidden" id="flowpool-widget">
+      <div class="flowpool-head">
+        <span class="flowpool-icon">🚗</span>
+        <div><strong>FlowPool</strong><small>Pool rides on same route</small></div>
+        <span class="badge" style="background:#dcfce7;color:#166534">Eco</span>
+      </div>
+      <div class="auth-tabs" id="flowpool-tabs" style="margin:8px 0">
+        <button data-tab="find" class="active">Find Pool</button>
+        <button data-tab="offer">Host Pool</button>
+      </div>
+      <div id="flowpool-find" class="flowpool-pane">
+        <div id="flowpool-find-status" class="small muted">Enter origin & destination then Navigate to see pools on this corridor.</div>
+        <div id="flowpool-find-list" class="flowpool-list"></div>
+      </div>
+      <div id="flowpool-offer" class="flowpool-pane hidden">
+        <div class="small muted">Offer seats for this route — others going same way can join to cut emissions.</div>
+        <div style="display:flex;gap:6px;margin:8px 0">
+          <select id="flowpool-depart" class="small"><option value="15">in 15 mins</option><option value="30" selected>in 30 mins</option><option value="60">in 60 mins</option><option value="120">in 2 hrs</option></select>
+          <button id="btn-flowpool-offer" class="btn-primary small">Host Pool →</button>
+        </div>
+        <div id="flowpool-offer-status" class="small muted"></div>
+        <div class="small muted" style="margin-top:6px">Requires: <a href="#" id="link-carpool-setup" class="btn-link">Set car details</a> in Carpool panel.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Right Stack -->
+<div class="top-right-stack">
+  <div class="panel controls-panel">
+    <div class="mode-toggle">
+      <button id="mode-driver" class="active">Driver</button>
+      <button id="mode-city">City</button>
+    </div>
+    <div id="weather-widget" class="weather-widget hidden">
+      <span id="weather-icon">◐</span> <span id="weather-text">—</span>
+    </div>
+    <div class="layers-control">
+      <div class="control-title">Layers</div>
+      <label class="check"><input type="checkbox" id="layer-traffic" checked> <span>Traffic</span></label>
+      <label class="check"><input type="checkbox" id="layer-forecast" checked> <span>AI Forecast</span></label>
+      <label class="check"><input type="checkbox" id="layer-risk"> <span>High-Risk</span></label>
+    </div>
+    <div class="forecast-tabs">
+      <div class="control-title">Forecast</div>
+      <div class="segmented">
+        <button data-horizon="now" class="active">NOW</button>
+        <button data-horizon="15">+15</button>
+        <button data-horizon="30">+30</button>
+      </div>
+    </div>
+    <button id="btn-simulate-toggle" class="btn-secondary full-width small">Scenario ▾</button>
+    <div id="simulator-panel" class="simulator hidden">
+      <div class="sim-grid">
+        <label>Traffic<select id="sim-traffic"><option value="normal">Normal</option><option value="high">High</option><option value="very_high">Very High</option></select></label>
+        <label>Weather<select id="sim-weather"><option value="clear">Clear</option><option value="rain">Rain</option></select></label>
+        <label>Event<select id="sim-event"><option value="none">None</option><option value="road_closure">Road Closure</option><option value="major_event">Major Event</option></select></label>
+      </div>
+      <button id="btn-run-sim" class="btn-primary full-width small">Apply to route</button>
+      <div id="sim-result" class="sim-result hidden"></div>
+    </div>
+  </div>
+
+  <div class="panel profile-panel">
+    <button id="profile-btn" class="profile-btn">
+      <span class="avatar" id="avatar-mini">◐</span>
+      <span id="profile-name">Guest</span>
+      <span class="caret">▾</span>
+    </button>
+    <div id="profile-menu" class="profile-menu hidden">
+      <div class="profile-head">
+        <div class="avatar large" id="avatar-large">◐</div>
+        <div><div id="pm-name">Guest Mode</div><small id="pm-email">Log in to save & Track</small></div>
+      </div>
+      <hr>
+      <button class="menu-item" id="btn-open-track">Track → Family</button>
+      <button class="menu-item" id="btn-open-carpool">Carpool → Share Ride</button>
+      <button class="menu-item" data-action="saved">Saved Places</button>
+      <div id="saved-places-list" class="saved-list hidden"></div>
+      <button class="menu-item" data-action="appearance">Appearance</button>
+      <div class="appearance-sub hidden" id="appearance-sub">
+        <button data-theme="system" class="theme-btn active">System</button>
+        <button data-theme="light" class="theme-btn">Light</button>
+        <button data-theme="dark" class="theme-btn">Dark</button>
+      </div>
+      <button class="menu-item" data-action="about">About Flow AI</button>
+      <button class="menu-item" id="btn-auth-open">Log in / Sign up</button>
+      <button class="menu-item hidden" id="btn-signout">Log out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Track Panel -->
+<div class="panel track-panel hidden" id="track-panel">
+  <div class="panel-head">
+    <h3>Track</h3>
+    <span class="badge">Family</span>
+    <button id="btn-close-track" class="icon-btn">×</button>
+  </div>
+  <p class="small muted">Send request by username. They must accept to share live location.</p>
+  <div class="track-search">
+    <input id="track-search-input" placeholder="Search username e.g. navya123" autocomplete="off">
+    <button id="btn-track-search" class="btn-secondary small">Search</button>
+  </div>
+  <div id="track-search-results" class="track-results"></div>
+  <div class="track-actions"><button id="btn-track-send" class="btn-primary small hidden">Send request</button></div>
+  <hr>
+  <div class="track-section">
+    <h4>Incoming requests</h4>
+    <div id="track-incoming"></div>
+  </div>
+  <div class="track-section">
+    <h4>Your connections</h4>
+    <div id="track-connections"></div>
+    <label class="check"><input type="checkbox" id="track-live-toggle"> Share my live location</label>
+    <small class="muted">When on, your device sends location every 10s to accepted peers.</small>
+  </div>
+</div>
+
+<!-- Carpool Panel -->
+<div class="panel carpool-panel hidden" id="carpool-panel">
+  <div class="panel-head">
+    <h3>Carpool</h3>
+    <span class="badge" style="background:#dcfce7;color:#166534">Eco</span>
+    <button id="btn-close-carpool" class="icon-btn">×</button>
+  </div>
+  <p class="small muted">Share rides on same route • fewer cars, less CO₂. Set your preference and car details.</p>
+
+  <div class="carpool-pref">
+    <label class="check"><input type="checkbox" id="carpool-ok"> I am okay with carpooling</label>
+    <div id="carpool-fields" class="carpool-fields hidden">
+      <label>Car model<input id="carpool-model" placeholder="e.g. Swift, Baleno, Nexon"></label>
+      <label>Car number<input id="carpool-number" placeholder="KA 01 AB 1234"></label>
+      <label>Seats available<select id="carpool-seats"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></label>
+      <label>Fuel type<select id="carpool-fuel"><option>Petrol</option><option>Diesel</option><option>CNG</option><option>Electric</option><option>Hybrid</option></select></label>
+    </div>
+    <button id="btn-save-carpool" class="btn-primary small full-width">Save carpool preference</button>
+    <div id="carpool-pref-status" class="small muted" style="margin-top:6px"></div>
+  </div>
+  <hr>
+  <div class="carpool-section">
+    <h4>My carpool offers</h4>
+    <div id="carpool-my-offers"></div>
+  </div>
+  <div class="carpool-section">
+    <h4>Joined rides</h4>
+    <div id="carpool-joined"></div>
+  </div>
+  <small class="muted">Offers auto-expire after departure. Create an offer from the route panel.</small>
+</div>
+
+<!-- AI Alert -->
+<div id="ai-alert" class="ai-alert hidden">
+  <div class="alert-icon">⚠</div>
+  <div><div class="alert-title">Traffic building ahead</div><div class="alert-desc" id="alert-desc">—</div></div>
+  <button id="btn-alert-route" class="btn-primary small">Use better route</button>
+  <button id="btn-alert-close" class="icon-btn">×</button>
+</div>
+
+<!-- Route Panel -->
+<div class="panel route-panel hidden" id="route-panel">
+  <div class="route-header">
+    <h3 id="route-title">Recommended</h3>
+    <span class="badge ai-badge">AI</span>
+    <button id="btn-close-route" class="icon-btn">×</button>
+  </div>
+  <div class="route-metrics"><h2 id="route-eta">--</h2><p id="route-distance">--</p><p class="route-road" id="route-road">Real road • OSM</p></div>
+  <p class="route-reason" id="route-reason"></p>
+  <div id="weather-on-route" class="weather-on-route hidden"></div>
+  <div class="impact-metrics" id="impact-metrics"></div>
+  <button class="btn-primary full-width" id="btn-start-nav">Start</button>
+  <div class="alternatives" id="alternative-routes-container"></div>
+  <!-- Carpool suggestion for this route -->
+  <div id="carpool-suggestion" class="carpool-suggestion hidden">
+    <div class="carpool-head"><span>👥</span><strong>Carpool along this route</strong><span id="carpool-count" class="badge" style="background:#dcfce7;color:#166534">0</span></div>
+    <div id="carpool-matches" class="carpool-matches"></div>
+    <div id="carpool-offer-area" class="carpool-offer-area">
+      <small class="muted">Going same way? Offer seats to reduce emissions.</small>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <select id="carpool-depart-select" class="small"><option value="15">in 15 mins</option><option value="30" selected>in 30 mins</option><option value="60">in 60 mins</option></select>
+        <button id="btn-offer-carpool" class="btn-secondary small">Offer Carpool →</button>
+      </div>
+      <div id="carpool-offer-status" class="small muted"></div>
+    </div>
+  </div>
+  <div class="legend"><span><i class="dot low"></i>Low</span><span><i class="dot mod"></i>Mod</span><span><i class="dot high"></i>High</span><span><i class="dot sev"></i>Severe</span> <span style="margin-left:8px">· Fuel & emission per route</span></div>
+</div>
+
+<!-- Live Navigation Panel (Google Maps-style - blue header like image) -->
+<div class="panel nav-panel hidden" id="nav-panel" style="padding:0; overflow:hidden; border:none; box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+  <div style="background:#1a73e8; color:white; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+    <div style="flex:1; min-width:0;">
+      <div id="nav-next-maneuver" style="font-weight:700; font-size:16px; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;">—</div>
+      <div id="nav-next-distance" style="font-size:13px; color:rgba(255,255,255,0.92); margin-top:2px;">—</div>
+    </div>
+    <button id="btn-stop-nav-top" style="background:white; color:#1a73e8; border:none; padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">✕ Exit</button>
+  </div>
+  <div style="padding:12px; background:var(--bg-surface);">
+    <div id="nav-remaining" class="small" style="color:var(--text-main); font-weight:600; font-size:13px;">Remaining: -- km • --</div>
+    <div id="nav-steps-list" style="max-height:160px; overflow:auto; margin-top:8px; border-top:1px solid var(--border); padding-top:8px;"></div>
+    <div id="nav-status" class="small muted" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- City Panel -->
+<div class="panel city-panel hidden" id="city-panel">
+  <div class="city-head"><h3>City Intelligence</h3><span class="badge city-badge">City</span></div>
+  <div id="insights-container"></div>
+  <p class="disclaimer">AI support — human approval required.</p>
+</div>
+
+<!-- Insight -->
+<div class="panel insight-card hidden" id="insight-card">
+  <div class="insight-header"><span class="dot warning" id="insight-dot"></span><h4 id="insight-category"></h4><button id="btn-close-insight" class="icon-btn">×</button></div>
+  <div class="insight-road" id="insight-road"></div>
+  <p class="insight-location"><span id="seg-start"></span> → <span id="seg-end"></span></p>
+  <div class="insight-grid">
+    <div><small>Current</small><div id="insight-current"></div></div>
+    <div><small>Forecast</small><div id="insight-forecast"></div></div>
+    <div><small>Risk</small><div id="seg-risk"></div></div>
+    <div><small>Avg speed</small><div id="seg-speed"></div></div>
+  </div>
+  <p class="insight-desc" id="insight-desc"></p>
+  <button id="btn-insight-route" class="btn-primary full-width">Use better route</button>
+</div>
+
+<!-- About -->
+<div id="about-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-head"><h3>About Flow AI</h3><button id="btn-close-about" class="icon-btn">×</button></div>
+    <div class="about-grid">
+      <div><h4>Model</h4><p>Random Forest congestion prediction.</p></div>
+      <div><h4>Inputs</h4><ul><li>vehicle count</li><li>average speed</li><li>road capacity</li><li>time</li><li>day</li><li>rainfall (real weather)</li></ul></div>
+      <div><h4>Outputs</h4><ul><li>score 0-100</li><li>Low/Moderate/High/Severe</li><li>fuel & CO₂ per route</li></ul></div>
+      <div><h4>Privacy</h4><ul><li>Live location only with consent</li><li>Hashed passwords, unique usernames</li></ul></div>
+      <div class="about-note">Flow — Predict. Optimize. Move. Bengaluru map, real OSM roads, no floating lines.</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/map.js"></script>
+<script src="/static/js/search.js"></script>
+<script src="/static/js/ui.js"></script>
+<script src="/static/js/app.js"></script>
+<script type="module">
+  try{
+    const cfg=window.FLOW_FIREBASE_CONFIG||null;
+    if(cfg){
+      const {initializeApp}=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+      const {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+      const app=initializeApp(cfg);
+      window._FLOW_AUTH={app,getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged};
+      window.dispatchEvent(new Event('flow-firebase-ready'));
+    }
+  }catch(e){console.log('guest mode',e.message)}
+</script>
+</body>
+</html>
