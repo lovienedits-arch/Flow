@@ -263,23 +263,16 @@ const UI = {
     this.startTrackPolling();
     this.loadWeather();
   },
-  async handleGoogle(){
-    if(!window._FLOW_AUTH){
-      toast('Google sign-in not configured — use username');
-      return;
-    }
-    try{
-      const auth=window._FLOW_AUTH.getAuth();
-      const provider=new window._FLOW_AUTH.GoogleAuthProvider();
-      const cred=await window._FLOW_AUTH.signInWithPopup(auth, provider);
-      const user=cred.user;
-      // Create backend account mirroring? For Flow we treat Google user as logged in via Firebase; store display name
-      this.updateProfileUI({username: user.email.split('@')[0], display_name: user.displayName||user.email});
-      this.hideAuth();
-      localStorage.setItem('flow_guest','1'); // mark guest but with Google name? could also map to username later
-      toast(`Google: ${user.displayName}`);
-    }catch(e){toast('Google failed: '+e.message);}
-  },
+async handleGoogle(){
+  if(typeof window.googleLogin !== 'function'){
+    toast('Google login is still loading — try again in a moment');
+    return;
+  }
+
+  await window.googleLogin();
+},
+
+async handleSignOut(){
   async handleSignOut(){
     await API.logout().catch(()=>{});
     localStorage.removeItem('flow_token');
