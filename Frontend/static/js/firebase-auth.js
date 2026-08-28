@@ -26,18 +26,12 @@ window.googleLogin = async function () {
 
     console.log("Google login successful:", user.email);
 
-    // Save user info for your existing FLOW UI
-    localStorage.setItem("flowUser", JSON.stringify({
-      name: user.displayName,
-      email: user.email,
-      photo: user.photoURL
-    }));
+    return user;
 
-    // Continue to your existing dashboard
-    window.location.href = "/";
   } catch (error) {
     console.error("Google login failed:", error);
     alert("Google sign-in failed: " + error.message);
+    throw error;
   }
 };
 
