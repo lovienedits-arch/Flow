@@ -264,19 +264,26 @@ const UI = {
     this.loadWeather();
   },
 async handleGoogle(){
+  if(!window._FLOW_AUTH){
+    toast('Google sign-in not configured — use username');
+    return;
+  }
   try{
-    console.log("Google button clicked");
+    const auth=window._FLOW_AUTH.getAuth();
+    const provider=new window._FLOW_AUTH.GoogleAuthProvider();
+    const cred=await window._FLOW_AUTH.signInWithPopup(auth, provider);
+    const user=cred.user;
 
-    if(typeof window.googleLogin !== 'function'){
-      throw new Error("window.googleLogin is not available");
-    }
+    this.updateProfileUI({
+      username: user.email.split('@')[0],
+      display_name: user.displayName||user.email
+    });
 
-    await window.googleLogin();
-
+    this.hideAuth();
+    localStorage.setItem('flow_guest','1');
+    toast(`Google: ${user.displayName}`);
   }catch(e){
-    console.error("Google login error:", e);
-    toast("Google error: " + e.message);
-    alert("Google login error: " + e.message);
+    toast('Google failed: '+e.message);
   }
 },
 async handleSignOut(){
